@@ -12,41 +12,43 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.siginwithgoogle = void 0;
+exports.googleAuth = void 0;
 const config_1 = __importDefault(require("../config"));
 const middleware_1 = require("../middleware");
 const db_1 = __importDefault(require("../db"));
+const service_1 = require("../service");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const siginwithgoogle = (0, middleware_1.asyncerrorhandler)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    const { Email } = req.body;
-    if (!Email) {
-        res.status(400).json({
-            message: "Email is required"
-        });
+const googleAuth = (0, middleware_1.asyncerrorhandler)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { credential, clientId } = req.body;
+    if (!credential || !clientId) {
+        res.status(400).json({ message: "Missing credential or client ID" });
         return;
     }
-    const exsitinguser = yield db_1.default.users.findUnique({
+    const ticket = yield service_1.googleclient.verifyIdToken({
+        idToken: credential,
+        audience: clientId,
+    });
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+        res.status(400).json({ message: "Invalid Google token payload" });
+        return;
+    }
+    const { email } = payload;
+    let user = yield db_1.default.users.findUnique({
         where: {
-            Email
-        }
+            Email: email
+        },
     });
-    const token = jsonwebtoken_1.default.sign(Email, config_1.default.JSONWENTOKENSECRECT);
-    if (exsitinguser) {
-        res.status(200).json({
-            message: "user alredy exsit ",
-            token
+    if (!user) {
+        user = yield db_1.default.users.create({
+            data: { Email: email },
         });
-        return;
     }
-    yield db_1.default.users.create({
-        data: {
-            Email
-        }
-    });
-    res.status(201).json({
-        message: "user create sucessfully",
+    const token = jsonwebtoken_1.default.sign(email, config_1.default.JSONWENTOKENSECRECT);
+    res.status(user ? 200 : 201).json({
+        message: user ? "Successfully logged in" : "Account created and logged in",
         token
     });
     return;
 }));
-exports.siginwithgoogle = siginwithgoogle;
+exports.googleAuth = googleAuth;

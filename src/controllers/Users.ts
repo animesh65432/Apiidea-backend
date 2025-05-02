@@ -1,47 +1,53 @@
 import config from "../config";
-import { Request, Response, NextFunction } from "express"
+import { Request, Response } from "express"
 import { asyncerrorhandler } from "../middleware"
 import db from "../db";
+import { googleclient } from "../service"
 import jsonwebtoken from "jsonwebtoken"
 
 
-const siginwithgoogle = asyncerrorhandler(async (req: Request, res: Response, next: NextFunction) => {
-    const { Email } = req.body
+const googleAuth = asyncerrorhandler(async (req: Request, res: Response) => {
+    const { credential, clientId } = req.body;
 
-    if (!Email) {
-        res.status(400).json({
-            message: "Email is required"
-        })
+    if (!credential || !clientId) {
+        res.status(400).json({ message: "Missing credential or client ID" });
         return
     }
 
+    const ticket = await googleclient.verifyIdToken({
+        idToken: credential,
+        audience: clientId,
+    });
 
+    const payload = ticket.getPayload();
 
-    const exsitinguser = await db.users.findUnique({
+    if (!payload || !payload.email) {
+        res.status(400).json({ message: "Invalid Google token payload" });
+        return
+    }
+
+    const { email } = payload
+
+    let user = await db.users.findUnique({
         where: {
-            Email
-        }
-    })
+            Email: email
 
-    const token = jsonwebtoken.sign(Email, config.JSONWENTOKENSECRECT as string)
-    if (exsitinguser) {
-        res.status(200).json({
-            message: "user alredy exsit ",
-            token
-        })
-        return
+        },
+    });
+
+    if (!user) {
+        user = await db.users.create({
+            data: { Email: email },
+        });
     }
+    const token = jsonwebtoken.sign(email, config.JSONWENTOKENSECRECT as string)
 
-    await db.users.create({
-        data: {
-            Email
-        }
-    })
-
-    res.status(201).json({
-        message: "user create sucessfully",
+    res.status(user ? 200 : 201).json({
+        message: user ? "Successfully logged in" : "Account created and logged in",
         token
-    })
+    });
     return
-})
-export { siginwithgoogle }
+});
+
+
+export { googleAuth }

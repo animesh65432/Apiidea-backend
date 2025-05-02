@@ -1,8 +1,8 @@
 import { Router } from "express"
-import { siginwithgoogle } from "../controllers"
+import { googleAuth } from "../controllers"
 
 const UserRouter = Router()
 
-UserRouter.post("/googleauth", siginwithgoogle)
+UserRouter.post("/googleauth", googleAuth)
 
 export default UserRouter

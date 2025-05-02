@@ -1,3 +1,3 @@
-import { siginwithgoogle } from "./Users"
+import { googleAuth } from "./Users"
 import { GenerateIdeaswithProjects, Get } from "./Project"
-export { siginwithgoogle, GenerateIdeaswithProjects, Get }
+export { googleAuth, GenerateIdeaswithProjects, Get }
