@@ -1,3 +1,3 @@
 import { googleAuth } from "./Users"
-import { GenerateIdeaswithProjects, Get } from "./Project"
-export { googleAuth, GenerateIdeaswithProjects, Get }
+import { GenerateIdeaswithProjects } from "./Project"
+export { googleAuth, GenerateIdeaswithProjects }

@@ -1,5 +1,6 @@
 import { AI_Model } from "../service"
 
+
 async function generateProjectIdeasWithDiagram(api: string): Promise<{ name: string, description: string, starterCode: string, diagram: string }[]> {
     try {
         const prompt = `
@@ -10,82 +11,124 @@ Return the ideas as an array of objects with the following structure:
   {
     "name": "Name of the project",
     "description": "Clear explanation of what this project does and how it uses the API.",
-    "starterCode": "// Starter code in JavaScript or TypeScript  and don't use comments and extra line please make code at least 50 line code",
+    "starterCode": "// Starter code in JavaScript or TypeScript that demonstrates how to use the API and statrtcode for these app in these app atleast 80 lines",
     "diagram": "A simple flow diagram using just text and arrows (→) on a single line. Example: 'User → UI → API → Database'"
-  },
-  {
-    // second project
-  },
-  {
-    // third project
   }
 ]
 
 IMPORTANT:
 - Return exactly 3 projects in an array format
 - Include all fields (name, description, starterCode, diagram) for each project
+- The starterCode should be properly escaped JSON string without line breaks in the JSON itself (use \\n for line breaks in code)
 - The diagram should be a SINGLE LINE showing the flow between components using arrow characters (→)
 - Use only simple arrows and text for the diagram, no ASCII art or multiline diagrams
-- The diagram should clearly show the relationship between components (like UI → Backend → API)
 - Return ONLY valid JSON in array format without any additional text, explanations, or markdown formatting
 `;
 
         const response = await AI_Model.generateContent(prompt);
         const resultText = await response.response.text();
 
-        // Look for array format JSON (starts with [ and ends with ])
-        const jsonMatch = resultText.match(/\[[\s\S]*\]/);
 
-        if (!jsonMatch) {
+        let jsonString = "";
+        let bracketCount = 0;
+        let startIndex = -1;
+
+
+        for (let i = 0; i < resultText.length; i++) {
+            if (resultText[i] === '[') {
+                startIndex = i;
+                break;
+            }
+        }
+
+        if (startIndex === -1) {
             throw new Error("Could not find valid JSON array in the response");
         }
 
-        const jsonString = jsonMatch[0];
+
+        for (let i = startIndex; i < resultText.length; i++) {
+            const char = resultText[i];
+
+            if (char === '[') bracketCount++;
+            if (char === ']') bracketCount--;
+
+            jsonString += char;
+
+            if (bracketCount === 0 && jsonString.length > 1) {
+
+                break;
+            }
+        }
+
         console.log("Extracted JSON array:", jsonString);
 
         try {
+
             const parsed = JSON.parse(jsonString);
 
-            // Validate that we got an array with the proper structure
+
             if (!Array.isArray(parsed)) {
                 throw new Error("Parsed result is not an array");
             }
 
-            // Ensure we have exactly 3 projects with required fields
-            if (parsed.length !== 3) {
-                console.warn(`Expected 3 projects, but got ${parsed.length}`);
-            }
 
-            // Verify each project has the required fields
-            parsed.forEach((project, index) => {
+            const validatedProjects = parsed.map((project, index) => {
                 const requiredFields = ['name', 'description', 'starterCode', 'diagram'];
+                const validatedProject: any = {};
+
+
                 for (const field of requiredFields) {
-                    if (!project[field]) {
-                        console.warn(`Project ${index + 1} is missing the ${field} field`);
-                    }
+                    validatedProject[field] = project[field] ||
+                        (field === 'name' ? `Project ${index + 1}` :
+                            field === 'description' ? 'No description provided' :
+                                field === 'starterCode' ? '// No starter code provided' :
+                                    'User → API');
                 }
 
-                // Ensure diagram is a single line
-                if (project.diagram && project.diagram.includes('\n')) {
-                    console.warn(`Project ${index + 1} diagram contains line breaks, fixing...`);
-                    project.diagram = project.diagram.replace(/\n/g, ' ').trim();
+
+                if (validatedProject.diagram.includes('\n')) {
+                    validatedProject.diagram = validatedProject.diagram.replace(/\n/g, ' ').trim();
                 }
+
+                return validatedProject;
             });
 
-            return parsed;
+
+            const finalProjects = validatedProjects.slice(0, 3);
+            while (finalProjects.length < 3) {
+                finalProjects.push({
+                    name: `Additional Project ${finalProjects.length + 1}`,
+                    description: `A simple project using the ${api} API.`,
+                    starterCode: `async function fetchData() {\n  const response = await fetch('${api}');\n  const data = await response.json();\n  return data;\n}\n\nfetchData().then(console.log).catch(console.error);`,
+                    diagram: `User → UI → ${api} → Display Results`
+                });
+            }
+
+            return finalProjects;
         } catch (parseError) {
             console.error("JSON parsing error:", parseError);
-            throw new Error("Failed to parse JSON array");
+            throw new Error(`Failed to parse JSON array: ${parseError}`);
         }
     } catch (error) {
         console.error("Error generating project ideas:", error);
-        // Return a single fallback project in the array format
         return [
             {
-                name: "N/A",
-                description: "Failed to generate content: " + (error instanceof Error ? error.message : String(error)),
-                starterCode: "",
-                diagram: "User → Error → Fallback"
+                name: `${api} Data Viewer`,
+                description: `A simple application that fetches and displays data from the ${api} API.`,
+                starterCode: `async function fetchData() {\n  const response = await fetch('${api}');\n  const data = await response.json();\n  console.log(data);\n  document.getElementById('results').textContent = JSON.stringify(data, null, 2);\n}\n\ndocument.getElementById('fetchButton').addEventListener('click', fetchData);\n`,
+                diagram: `User → UI → ${api} → Display Results`
+            },
+            {
+                name: `${api} Data Explorer`,
+                description: `An interactive tool to explore and filter data from the ${api} API.`,
+                starterCode: `let cachedData = [];\n\nasync function fetchAllData() {\n  const response = await fetch('${api}');\n  cachedData = await response.json();\n  renderData(cachedData);\n}\n\nfunction renderData(data) {\n  const container = document.getElementById('results');\n  container.innerHTML = '';\n  data.forEach(item => {\n    const div = document.createElement('div');\n    div.textContent = JSON.stringify(item);\n    container.appendChild(div);\n  });\n}\n\ndocument.getElementById('fetchButton').addEventListener('click', fetchAllData);\n`,
+                diagram: `User → UI → ${api} → Data Processing → Interactive Display`
+            },
+            {
+                name: `${api} Dashboard`,
+                description: `A dashboard that visualizes key metrics and insights from the ${api} API.`,
+                starterCode: `async function fetchAndVisualize() {\n  const response = await fetch('${api}');\n  const data = await response.json();\n  \n  // Process data for visualization\n  const processedData = processData(data);\n  \n  // Render charts\n  renderCharts(processedData);\n}\n\nfunction processData(data) {\n  // Example processing logic\n  return {\n    counts: data.reduce((acc, item) => {\n      acc[item.category] = (acc[item.category] || 0) + 1;\n      return acc;\n    }, {}),\n    totals: data.reduce((sum, item) => sum + (item.value || 0), 0)\n  };\n}\n\nfunction renderCharts(data) {\n  document.getElementById('summary').textContent = \`Total: \${data.totals}\`;\n  \n  const categories = Object.keys(data.counts);\n  categories.forEach(category => {\n    const div = document.createElement('div');\n    div.textContent = \`\${category}: \${data.counts[category]}\`;\n    document.getElementById('charts').appendChild(div);\n  });\n}\n\ndocument.getElementById('analyzeButton').addEventListener('click', fetchAndVisualize);\n`,
+                diagram: `User → Dashboard UI → ${api} → Data Analysis → Charts & Metrics`
             }
         ];
     }
