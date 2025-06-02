@@ -22,7 +22,7 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
 
     const checkuser = await db.users.findUnique({
         where: {
-            Email
+            email: Email
         }
     })
 

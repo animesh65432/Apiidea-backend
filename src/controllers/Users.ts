@@ -30,14 +30,14 @@ const googleAuth = asyncerrorhandler(async (req: Request, res: Response) => {
 
     let user = await db.users.findUnique({
         where: {
-            Email: email
+            email
 
         },
     });
 
     if (!user) {
         user = await db.users.create({
-            data: { Email: email },
+            data: { email },
         });
     }
     const token = jsonwebtoken.sign(email, config.JSONWENTOKENSECRECT as string)
